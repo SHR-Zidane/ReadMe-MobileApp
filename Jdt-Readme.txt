@@ -16,6 +16,11 @@
 75min - Ajustement de l'affichage sur l'appli flashcard
 20min - Configuration de expo go et tests de déploiement sur smartphone avec react native
 
-22 avril - Total : 
+22 avril - Total : 160min
 -------
 20min - prise en compte de l'évaluation du/des jdt&commits
+15min - Reinitialiser le projet pour enlever le template de base
+60min - Quelques tests pour se familiariser avec react native
+30min - Lecture de la documentation MySQL BLOB
+40min - Rédaction du script SQL pour les fichiers BLOB
+45min - Essayer d'afficher les données via l'API [BLOQUER]

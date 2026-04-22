@@ -5,6 +5,7 @@ async function fetchData() {
             throw new Error('Api request failed with status ' + response.status);
         }
         const data = await response.json();
+        console.log('Données récupérées:', data);
         return data;
     } catch (error) {
         console.error('Impossible de récupérer les livres:', error);
