@@ -1,6 +1,7 @@
 async function fetchData() {
     try {
-        const response = await fetch('http://127.0.0.1:3000/books');
+        // Pointe vers le serveur Node.js local avec CORS activé
+        const response = await fetch('http://localhost:3001/api/epubs');
         if (!response.ok) {
             throw new Error('Api request failed with status ' + response.status);
         }
@@ -12,3 +13,5 @@ async function fetchData() {
         throw error;
     }
 }
+
+export { fetchData };
