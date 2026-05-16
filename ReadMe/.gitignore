@@ -39,3 +39,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+public/epub/
+public/cover_image/
+public/extract_pdf/
+node_modules/
+.env
