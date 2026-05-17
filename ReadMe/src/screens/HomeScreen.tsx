@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { getBooks, uploadBook } from '../api/ApiService';
 import LoadingIndicator from '../components/LoadingIndicator';
+import BookCard from '../components/BookCard';
 import { useNavigation } from '@react-navigation/native';
 
 // Palette de couleurs
@@ -100,19 +101,17 @@ const HomeScreen = () => {
 };
 
     const renderBook = ({ item }: { item: any }) => {
-    console.log("Données du livre reçu :", item);
-    // Construction de l'URL de l'image
-    const imageUrl = item.cover_image 
-        ? `${'http://192.168.1.220:3000'}/cover_image/${item.cover_image}`
-        : 'https://via.placeholder.com/150'; // Image par défaut
-
-    return (
-        <TouchableOpacity style={styles.card}>
-            <Image source={{ uri: imageUrl }} style={styles.cover} />
-            {/* ... reste du contenu ... */}
-        </TouchableOpacity>
-    );
-};
+        return (
+            <BookCard
+                title={item.title}
+                author={item.author || 'Auteur inconnu'}
+                cover_image={item.cover_image}
+                layout="list"
+                onPress={() => navigation.navigate('BookDetails', { id: item.id })}
+                style={{}}
+            />
+        );
+    };
 
     if (loading) return <LoadingIndicator />;
 
@@ -151,8 +150,7 @@ const HomeScreen = () => {
                 data={books}
                 keyExtractor={(item) => item.id.toString()}
                 renderItem={renderBook}
-                numColumns={2}
-                columnWrapperStyle={styles.row}
+                numColumns={1}
                 ListEmptyComponent={
                     <View style={{ alignItems: 'center', marginTop: 50 }}>
                         <Text style={{ color: COLORS.textSub }}>Aucun livre dans votre bibliothèque.</Text>
@@ -204,7 +202,7 @@ const styles = StyleSheet.create({
     },
     row: { justifyContent: 'space-between' },
     card: { 
-        width: '48%', 
+        width: '100%', 
         backgroundColor: '#FFF', 
         borderRadius: 12, 
         marginBottom: 15,
@@ -214,7 +212,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
     },
-    cover: { width: '100%', height: 200, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+    cover: { width: '100%', aspectRatio: 2/3, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
     cardContent: { padding: 10 },
     title: { fontSize: 14, fontWeight: 'bold', color: COLORS.textMain },
     author: { fontSize: 12, color: COLORS.textSub, marginVertical: 4 },

@@ -1,7 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import HomeScreen from '../screens/HomeScreen';
-import BookDetailScreen from '../screens/BookDetailsScreen';
+import BookDetailsScreen from '../screens/BookDetailsScreen';
 
 const Stack = createStackNavigator();
 
@@ -16,8 +16,12 @@ const AppNavigator = () => {
         component={HomeScreen}
       />
       <Stack.Screen
-        name="BookDetail"
-        component={BookDetailScreen}
+        name="BookDetails"
+        component={BookDetailsScreen}
+        options={{ 
+          headerShown: true,
+          title: 'Détails du livre' 
+        }}
       />
     </Stack.Navigator>
   );
