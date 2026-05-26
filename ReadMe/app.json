@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "ReadMe",
+    "slug": "readme",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4FBF8"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.readme.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F4FBF8"
+      },
+      "package": "com.readme.app",
+      "usesCleartextTraffic": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "newArchEnabled": true
+  }
+}
