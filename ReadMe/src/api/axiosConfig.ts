@@ -22,6 +22,13 @@ import Constants from "expo-constants";
 
 // ─── Résolution de la baseURL ────────────────────────────────────────────────
 
+// Tunnels qui nécessitent le header anti-interstitiel
+const TUNNEL_PATTERNS = ["ngrok-free.app", "ngrok.io", "ngrok.app"];
+
+export function isTunnelUrl(url: string): boolean {
+  return TUNNEL_PATTERNS.some((p) => url.includes(p));
+}
+
 function resolveBaseUrl(): string {
   // ── Priorité 1 : variable d'environnement explicite ──────────────────────
   // Couvre deux cas :
@@ -71,6 +78,11 @@ export const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
+    // Désactive la page d'avertissement ngrok pour les requêtes API.
+    // Ignoré par les serveurs non-ngrok (header inconnu = ignoré).
+    ...(isTunnelUrl(API_BASE_URL) && {
+      "ngrok-skip-browser-warning": "true",
+    }),
   },
 });
 

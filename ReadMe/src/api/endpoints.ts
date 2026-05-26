@@ -23,21 +23,9 @@ export const ENDPOINTS = {
   /** POST /api/books  →  création / upload d'un nouveau livre */
   BOOK_CREATE: "/books",
 
-  // ── Catégories ────────────────────────────────────────────────────────────
-  /** GET /api/categories  →  liste des catégories */
-  CATEGORIES: "/categories",
-
   // ── Auteurs ───────────────────────────────────────────────────────────────
   /** GET /api/authors  →  liste des auteurs */
   AUTHORS: "/authors",
-
-  // ── Avis ──────────────────────────────────────────────────────────────────
-  /** GET /api/reviews  →  liste des avis */
-  REVIEWS: "/reviews",
-
-  // ── Utilisateurs ──────────────────────────────────────────────────────────
-  /** GET /api/users  →  liste des utilisateurs */
-  USERS: "/users",
 
   // ── Tags ─────────────────────────────────────────────────────────────────
   /** GET /api/tags  →  liste de tous les tags */

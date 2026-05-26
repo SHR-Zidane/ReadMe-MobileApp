@@ -24,12 +24,9 @@ export interface Book {
   cover_image: string | null;
   last_read_page: number;
   epub_content?: string;
-  userId: number | null;
   authorId: number | null;
-  categoryId: number | null;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
   author?: Author;
-  category?: Category;
-  tags?: Tag[];
+  tags: Tag[]; // toujours un tableau (normalisé côté backend)
 }

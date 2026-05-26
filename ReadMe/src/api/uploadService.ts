@@ -19,7 +19,7 @@
  * On garde Axios (apiClient) pour toutes les autres requêtes JSON.
  */
 
-import { apiClient } from "./axiosConfig";
+import { apiClient, isTunnelUrl } from "./axiosConfig";
 import { ENDPOINTS } from "./endpoints";
 import type { Book } from "../types/models";
 import { resolveAndroidContentUri } from "../utils/fileHelper";
@@ -117,6 +117,11 @@ function sendWithXHR(
 
     // Accept JSON en retour
     xhr.setRequestHeader("Accept", "application/json");
+
+    // Header anti-interstitiel ngrok (ignoré si le serveur n'est pas ngrok)
+    if (isTunnelUrl(url)) {
+      xhr.setRequestHeader("ngrok-skip-browser-warning", "true");
+    }
 
     // ⚠️  NE PAS définir Content-Type ici.
     // React Native détecte le FormData et génère automatiquement :
