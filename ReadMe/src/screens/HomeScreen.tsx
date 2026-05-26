@@ -9,7 +9,8 @@ import {
     TextInput,
     Modal,
     ActivityIndicator,
-    Alert
+    Alert,
+    Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -62,25 +63,34 @@ const HomeScreen = () => {
 
             const formData = new FormData();
 
-            // --- STRATÉGIE WEB ---
-            let fileBlob: Blob;
-
-            if (asset.file instanceof Blob) {
-                // Si l'objet File/Blob existe déjà (comportement standard Web)
-                fileBlob = asset.file;
+            if (Platform.OS === 'web') {
+                // --- STRATÉGIE WEB ---
+                let fileBlob: Blob;
+                if (asset.file instanceof Blob) {
+                    fileBlob = asset.file;
+                } else {
+                    const response = await fetch(asset.uri);
+                    fileBlob = await response.blob();
+                }
+                formData.append('epub', fileBlob, asset.name || 'book.epub');
             } else {
-                // Sinon on transforme l'URI en Blob (nécessaire pour certains navigateurs)
-                const response = await fetch(asset.uri);
-                fileBlob = await response.blob();
-            }
+                // --- STRATÉGIE MOBILE (React Native) ---
+                const fileUri = Platform.OS === 'android' && !asset.uri.startsWith('file://') && !asset.uri.startsWith('content://') 
+                    ? `file://${asset.uri}` 
+                    : asset.uri;
 
-            // On ajoute le blob avec la clé 'epub' + le nom du fichier
-            formData.append('epub', fileBlob, asset.name || 'book.epub');
+                // @ts-ignore
+                formData.append('epub', {
+                    uri: fileUri,
+                    name: asset.name || 'book.epub',
+                    type: asset.mimeType || 'application/epub+zip',
+                });
+            }
             
-            // Champs obligatoires pour ton modèle Sequelize
-            formData.append('title', asset.name ? asset.name.replace('.epub', '') : 'Nouveau Livre');
-            formData.append('authorId', "1"); 
-            formData.append('categoryId', "1");
+            // On laisse le backend extraire le titre de l'EPUB, 
+            // ou on envoie un nom d'auteur générique pour le test
+            formData.append('author_name', 'Auteur Inconnu'); 
+            // On ne met plus authorId: "1" pour éviter l'erreur de clé étrangère
 
             // Appel API
             const res = await uploadBook(formData);
@@ -89,7 +99,7 @@ const HomeScreen = () => {
                 Alert.alert('Succès', 'Livre ajouté avec succès !');
                 fetchData();
             } else {
-                Alert.alert('Le serveur a refusé le fichier');
+                Alert.alert('Erreur', 'Le serveur a refusé le fichier.');
             }
         }
     } catch (err) {

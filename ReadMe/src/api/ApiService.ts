@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Book } from '../types/models';
 
-const API_BASE_URL = 'http://192.168.1.220:3000/api'; 
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api'; 
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

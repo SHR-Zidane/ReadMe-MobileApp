@@ -36,7 +36,7 @@ const BookCard: React.FC<BookCardProps> = ({
   style,
   layout = 'grid',
 }) => {
-  const imageUrl = `http://192.168.1.220:3000/cover_image/${cover_image}`;
+  const imageUrl = `${process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3000'}/cover_image/${cover_image}`;
     const getAuthorText = (a?: string | AuthorObj | null) => {
       if (!a) return 'Auteur inconnu';
       if (typeof a === 'string') return a;

@@ -8,8 +8,9 @@ import {
   StyleSheet,
   Dimensions,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { getBookById } from '../api/ApiService';
 
 // Récupération de la largeur de l'écran pour le calcul des marges
@@ -17,6 +18,7 @@ const { width } = Dimensions.get('window');
 
 const BookDetailScreen = () => {
   const route = useRoute();
+  const navigation = useNavigation<any>();
   
   // Récupération de l'ID robuste (gère 'id' ou 'bookId' envoyés par HomeScreen)
   const params = route.params as { id?: number; bookId?: number };
@@ -79,7 +81,7 @@ const BookDetailScreen = () => {
           {/* 1. L'IMAGE DE COUVERTURE (Rétrécie et centrée) */}
           <View style={styles.coverWrapper}>
             <Image
-              source={{ uri: `http://192.168.1.220:3000/cover_image/${book.cover_image}` }}
+              source={{ uri: `${process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3000'}/cover_image/${book.cover_image}` }}
               style={styles.coverImage}
               resizeMode="cover" // 'cover' remplit le cadre sans déformer
             />
@@ -94,6 +96,19 @@ const BookDetailScreen = () => {
                 ? `${book.author.first_name} ${book.author.last_name}`.trim()
                 : 'Auteur inconnu'}
             </Text>
+          </View>
+
+          {/* BOUTON LIRE */}
+          <View style={styles.actionContainer}>
+            <TouchableOpacity 
+              style={styles.readButton}
+              onPress={() => {
+                const epubUrl = `${process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3000'}/epub/${book.epubPath}`;
+                navigation.navigate('Reader', { epubUrl, title: book.title });
+              }}
+            >
+              <Text style={styles.readButtonText}>Lire le livre</Text>
+            </TouchableOpacity>
           </View>
 
           {/* 3. RÉSUMÉ (summary extrait par Python) */}
@@ -182,6 +197,31 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 6,
     fontWeight: '500',
+  },
+
+  // Styles pour les actions
+  actionContainer: {
+    paddingHorizontal: 25,
+    marginBottom: 25,
+    alignItems: 'center',
+  },
+  readButton: {
+    backgroundColor: '#4A635E',
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 30,
+    width: '100%',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  readButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 
   // Styles pour le résumé
