@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,17 +9,17 @@ import {
   Modal,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { uploadEpub } from "../api/uploadService";
 import { useBooks } from "../hooks/useBooks";
+import { useTags } from "../hooks/useTags";
 import LoadingIndicator from "../components/LoadingIndicator";
 import BookCard from "../components/BookCard";
 import { useNavigation } from "@react-navigation/native";
 import type { Book } from "../types/models";
-
-// ─── Palette de couleurs ─────────────────────────────────────────────────────
 
 const COLORS = {
   primary: "#4A635E",
@@ -31,18 +31,43 @@ const COLORS = {
   errorBg: "#FDECEA",
 };
 
-// ─── Composant ────────────────────────────────────────────────────────────────
-
 const HomeScreen = () => {
   const navigation = useNavigation<any>();
   const [uploading, setUploading] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
 
-  // ── Récupération des livres via React Query ────────────────────────────────
   const { books, isLoading, isError, error, attemptedUrl, refetch } =
     useBooks();
+  const { tags } = useTags();
 
-  // ── Upload d'un EPUB ───────────────────────────────────────────────────────
+  const filteredBooks = useMemo(() => {
+    let result = [...books];
+
+    // Filtre texte
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter((b) => b.title.toLowerCase().includes(q));
+    }
+
+    // Filtre tags
+    if (selectedTagIds.length > 0) {
+      result = result.filter((b) =>
+        b.tags?.some((t) => selectedTagIds.includes(t.id)),
+      );
+    }
+
+    // Tri par date d'ajout
+    result.sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+    });
+
+    return result;
+  }, [books, searchQuery, selectedTagIds, sortOrder]);
 
   const handlePickDocument = async () => {
     try {
@@ -70,7 +95,7 @@ const HomeScreen = () => {
 
       if (res.success && res.book) {
         Alert.alert("Succès", "Livre ajouté avec succès !");
-        refetch(); // Rafraîchit la liste via React Query
+        refetch();
       } else if (res.error) {
         Alert.alert("Erreur", res.error.message);
       }
@@ -82,7 +107,22 @@ const HomeScreen = () => {
     }
   };
 
-  // ── Rendu d'un item de la liste ────────────────────────────────────────────
+  const toggleTag = (tagId: number) => {
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId)
+        ? prev.filter((id) => id !== tagId)
+        : [...prev, tagId],
+    );
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedTagIds([]);
+    setSortOrder("desc");
+  };
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" || selectedTagIds.length > 0 || sortOrder !== "desc";
 
   const renderBook = ({ item }: { item: Book }) => (
     <BookCard
@@ -98,8 +138,6 @@ const HomeScreen = () => {
       style={{}}
     />
   );
-
-  // ── États de chargement et d'erreur ───────────────────────────────────────
 
   if (isLoading) return <LoadingIndicator />;
 
@@ -121,8 +159,6 @@ const HomeScreen = () => {
     );
   }
 
-  // ── Rendu principal ────────────────────────────────────────────────────────
-
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -133,9 +169,11 @@ const HomeScreen = () => {
             onPress={() => setFilterVisible(true)}
             style={styles.filterButton}
           >
-            <Text style={{ color: COLORS.primary, fontWeight: "bold" }}>
-              Filtres
-            </Text>
+            <Ionicons
+              name={hasActiveFilters ? "funnel" : "funnel-outline"}
+              size={20}
+              color={COLORS.primary}
+            />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -157,22 +195,62 @@ const HomeScreen = () => {
         style={styles.searchBar}
         placeholder="Rechercher un livre..."
         placeholderTextColor={COLORS.textSub}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
       />
+
+      {/* Tri actif */}
+      <View style={styles.sortRow}>
+        <TouchableOpacity
+          style={styles.sortBtn}
+          onPress={() =>
+            setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))
+          }
+        >
+          <Ionicons
+            name={sortOrder === "desc" ? "arrow-down" : "arrow-up"}
+            size={14}
+            color={COLORS.primary}
+          />
+          <Text style={styles.sortBtnText}>
+            {sortOrder === "desc"
+              ? "Plus récents d'abord"
+              : "Plus anciens d'abord"}
+          </Text>
+        </TouchableOpacity>
+
+        {selectedTagIds.length > 0 && (
+          <View style={styles.tagBadge}>
+            <Text style={styles.tagBadgeText}>
+              {selectedTagIds.length} filtre(s)
+            </Text>
+          </View>
+        )}
+      </View>
 
       {/* Liste des livres */}
       <FlatList
-        data={books}
+        data={filteredBooks}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderBook}
         numColumns={1}
+        contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={{ alignItems: "center", marginTop: 50 }}>
-            <Text style={{ color: COLORS.textSub }}>
-              Aucun livre dans votre bibliothèque.
-            </Text>
-            <Text style={{ color: COLORS.textSub }}>
-              Appuyez sur + pour en ajouter un !
-            </Text>
+            {searchQuery.trim() || selectedTagIds.length > 0 ? (
+              <Text style={{ color: COLORS.textSub }}>
+                Aucun livre ne correspond à votre recherche.
+              </Text>
+            ) : (
+              <>
+                <Text style={{ color: COLORS.textSub }}>
+                  Aucun livre dans votre bibliothèque.
+                </Text>
+                <Text style={{ color: COLORS.textSub }}>
+                  Appuyez sur + pour en ajouter un !
+                </Text>
+              </>
+            )}
           </View>
         }
       />
@@ -181,26 +259,120 @@ const HomeScreen = () => {
       <Modal visible={filterVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Catégories</Text>
-            {["Roman", "Manga", "SF, Fantasy", "Bande dessinée"].map((cat) => (
-              <TouchableOpacity key={cat} style={styles.filterItem}>
-                <Text>{cat}</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Trier par</Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.sortOption,
+                  sortOrder === "desc" && styles.sortOptionActive,
+                ]}
+                onPress={() => setSortOrder("desc")}
+              >
+                <Ionicons
+                  name="arrow-down"
+                  size={18}
+                  color={
+                    sortOrder === "desc" ? "#fff" : COLORS.textMain
+                  }
+                />
+                <Text
+                  style={[
+                    styles.sortOptionText,
+                    sortOrder === "desc" && styles.sortOptionTextActive,
+                  ]}
+                >
+                  Plus récents d'abord
+                </Text>
               </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setFilterVisible(false)}
-            >
-              <Text style={{ color: "white" }}>Fermer</Text>
-            </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.sortOption,
+                  sortOrder === "asc" && styles.sortOptionActive,
+                ]}
+                onPress={() => setSortOrder("asc")}
+              >
+                <Ionicons
+                  name="arrow-up"
+                  size={18}
+                  color={
+                    sortOrder === "asc" ? "#fff" : COLORS.textMain
+                  }
+                />
+                <Text
+                  style={[
+                    styles.sortOptionText,
+                    sortOrder === "asc" && styles.sortOptionTextActive,
+                  ]}
+                >
+                  Plus anciens d'abord
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.modalTitle}>Filtrer par tags</Text>
+
+              {tags.length === 0 && (
+                <Text style={{ color: COLORS.textSub, marginBottom: 12 }}>
+                  Aucun tag disponible.
+                </Text>
+              )}
+
+              <View style={styles.tagList}>
+                {tags.map((tag) => {
+                  const isSelected = selectedTagIds.includes(tag.id);
+                  return (
+                    <TouchableOpacity
+                      key={tag.id}
+                      style={[
+                        styles.tagChip,
+                        isSelected && {
+                          backgroundColor: tag.color || COLORS.primary,
+                        },
+                      ]}
+                      onPress={() => toggleTag(tag.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.tagChipText,
+                          isSelected && { color: "#fff" },
+                        ]}
+                      >
+                        {tag.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              {hasActiveFilters && (
+                <TouchableOpacity
+                  style={styles.clearBtn}
+                  onPress={() => {
+                    clearFilters();
+                    setFilterVisible(false);
+                  }}
+                >
+                  <Text style={styles.clearBtnText}>Effacer tout</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setFilterVisible(false)}
+              >
+                <Text style={{ color: "white" }}>Appliquer</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
     </View>
   );
 };
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingHorizontal: 10 },
@@ -217,7 +389,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   filterButton: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     marginRight: 8,
   },
@@ -238,9 +410,45 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5F5F5",
     borderRadius: 10,
     padding: 12,
-    marginBottom: 20,
+    marginBottom: 8,
   },
-  // ── Erreur réseau ──────────────────────────────────────────────────────────
+  sortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 8,
+  },
+  sortBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.secondary,
+    gap: 4,
+  },
+  sortBtnText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: "600",
+  },
+  tagBadge: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  tagBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  // ── Erreur réseau ──
   errorContainer: {
     flex: 1,
     justifyContent: "center",
@@ -279,7 +487,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontWeight: "bold",
   },
-  // ── Modal ──────────────────────────────────────────────────────────────────
+  // ── Modal ──
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -290,19 +498,82 @@ const styles = StyleSheet.create({
     padding: 20,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    maxHeight: "80%",
   },
-  modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15 },
-  filterItem: {
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 12,
+    color: COLORS.textMain,
+  },
+  sortOption: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEE",
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginBottom: 8,
+    backgroundColor: "#F5F5F5",
+    gap: 8,
   },
-  closeBtn: {
+  sortOptionActive: {
     backgroundColor: COLORS.primary,
-    padding: 15,
+  },
+  sortOptionText: {
+    fontSize: 15,
+    color: COLORS.textMain,
+    fontWeight: "500",
+  },
+  sortOptionTextActive: {
+    color: "#fff",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#EEE",
+    marginVertical: 16,
+  },
+  tagList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  tagChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#DDD",
+    backgroundColor: "#fff",
+  },
+  tagChipText: {
+    fontSize: 13,
+    color: COLORS.textMain,
+    fontWeight: "600",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    paddingTop: 8,
+  },
+  clearBtn: {
+    flex: 1,
+    padding: 14,
     borderRadius: 10,
     alignItems: "center",
-    marginTop: 20,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  clearBtnText: {
+    color: COLORS.primary,
+    fontWeight: "bold",
+  },
+  closeBtn: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    padding: 14,
+    borderRadius: 10,
+    alignItems: "center",
   },
 });
 

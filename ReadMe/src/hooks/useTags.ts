@@ -1,15 +1,8 @@
-/**
- * useTags.ts
- *
- * Hooks React Query pour la gestion des tags et leur association aux livres.
- */
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../api/axiosConfig";
 import { ENDPOINTS } from "../api/endpoints";
+import { BOOKS_QUERY_KEY } from "./useBooks";
 import type { Tag } from "../types/models";
-
-// ─── Response shapes ──────────────────────────────────────────────────────────
 
 interface TagsListResponse {
   error: boolean;
@@ -21,14 +14,9 @@ interface TagSingleResponse {
   result: Tag;
 }
 
-// ─── Query keys ───────────────────────────────────────────────────────────────
-
 export const TAGS_QUERY_KEY = ["tags"] as const;
 
-// ─── useTags ──────────────────────────────────────────────────────────────────
-
 export interface UseTagsResult {
-  /** Liste complète de tous les tags de l'application */
   tags: Tag[];
   isLoading: boolean;
   isError: boolean;
@@ -56,8 +44,6 @@ export function useTags(): UseTagsResult {
   };
 }
 
-// ─── useCreateTag ─────────────────────────────────────────────────────────────
-
 export interface CreateTagVariables {
   name: string;
   color: string;
@@ -80,13 +66,10 @@ export function useCreateTag() {
   });
 }
 
-// ─── useUpdateTag ─────────────────────────────────────────────────────────────
-
 export interface UpdateTagVariables {
   id: number;
   name?: string;
   color?: string;
-  /** Quand fourni, invalide aussi le cache du livre concerné */
   bookId?: number;
 }
 
@@ -103,6 +86,7 @@ export function useUpdateTag() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: TAGS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: BOOKS_QUERY_KEY });
       if (variables.bookId !== undefined) {
         queryClient.invalidateQueries({
           queryKey: ["book", variables.bookId],
@@ -111,8 +95,6 @@ export function useUpdateTag() {
     },
   });
 }
-
-// ─── useDeleteTag ─────────────────────────────────────────────────────────────
 
 export function useDeleteTag() {
   const queryClient = useQueryClient();
@@ -123,11 +105,10 @@ export function useDeleteTag() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TAGS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: BOOKS_QUERY_KEY });
     },
   });
 }
-
-// ─── useAddTagToBook ──────────────────────────────────────────────────────────
 
 export interface AddTagToBookVariables {
   tagId: number;
@@ -142,12 +123,11 @@ export function useAddTagToBook(bookId: number) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["book", bookId] });
+      queryClient.invalidateQueries({ queryKey: BOOKS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: TAGS_QUERY_KEY });
     },
   });
 }
-
-// ─── useRemoveTagFromBook ─────────────────────────────────────────────────────
 
 export function useRemoveTagFromBook(bookId: number) {
   const queryClient = useQueryClient();
@@ -158,6 +138,7 @@ export function useRemoveTagFromBook(bookId: number) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["book", bookId] });
+      queryClient.invalidateQueries({ queryKey: BOOKS_QUERY_KEY });
     },
   });
 }

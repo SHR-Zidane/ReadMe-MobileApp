@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { SERVER_BASE_URL } from "../api/axiosConfig";
 import {
   View,
@@ -11,19 +11,19 @@ import {
   ImageStyle,
   Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 interface AuthorObj {
   id?: number | string;
   first_name?: string;
   last_name?: string;
-  // fallback in case API provides a single name field
   name?: string;
 }
 
 interface BookCardProps {
   title: string;
   author?: string | AuthorObj | null;
-  cover_image: string;
+  cover_image: string | null;
   onPress?: () => void;
   style?: ViewStyle;
   layout?: "grid" | "list";
@@ -37,15 +37,34 @@ const BookCard: React.FC<BookCardProps> = ({
   style,
   layout = "grid",
 }) => {
-  const imageUrl = `${SERVER_BASE_URL}/cover_image/${cover_image}`;
+  const [imageError, setImageError] = useState(false);
+  const hasValidCover = cover_image != null && !imageError;
+
   const getAuthorText = (a?: string | AuthorObj | null) => {
     if (!a) return "Auteur inconnu";
     if (typeof a === "string") return a;
-    // object case
     const name = a.name || `${a.first_name || ""} ${a.last_name || ""}`.trim();
     return name || "Auteur inconnu";
   };
   const authorText = getAuthorText(author);
+
+  const renderCover = (imageStyle: ImageStyle) => {
+    if (hasValidCover) {
+      return (
+        <Image
+          source={{ uri: `${SERVER_BASE_URL}/cover_image/${cover_image}` }}
+          style={imageStyle}
+          resizeMode="cover"
+          onError={() => setImageError(true)}
+        />
+      );
+    }
+    return (
+      <View style={[imageStyle, styles.placeholderContainer]}>
+        <Ionicons name="book-outline" size={32} color="#CDE8E1" />
+      </View>
+    );
+  };
 
   if (layout === "list") {
     return (
@@ -55,11 +74,7 @@ const BookCard: React.FC<BookCardProps> = ({
         style={[styles.listContainer, style]}
         accessibilityLabel={`Book: ${title} by ${authorText}`}
       >
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.listImage}
-          resizeMode="cover"
-        />
+        {renderCover(styles.listImage)}
         <View style={styles.listMeta}>
           <Text style={styles.title} numberOfLines={2}>
             {title}
@@ -80,11 +95,7 @@ const BookCard: React.FC<BookCardProps> = ({
       accessibilityLabel={`Book: ${title} by ${authorText}`}
     >
       <View style={styles.card}>
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.coverImage}
-          resizeMode="cover"
-        />
+        {renderCover(styles.coverImage)}
 
         <View style={styles.meta}>
           <Text style={styles.title} numberOfLines={2}>
@@ -109,6 +120,7 @@ const styles = StyleSheet.create<{
   listContainer: ViewStyle;
   listImage: ImageStyle;
   listMeta: ViewStyle;
+  placeholderContainer: ViewStyle;
 }>({
   container: {
     flex: 1,
@@ -120,7 +132,6 @@ const styles = StyleSheet.create<{
     backgroundColor: "#fff",
     borderRadius: 12,
     overflow: "hidden",
-    // Shadow (iOS) and elevation (Android)
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -135,7 +146,7 @@ const styles = StyleSheet.create<{
   },
   coverImage: {
     width: "100%",
-    aspectRatio: 2 / 3, // width : height = 2:3 (vertical cover)
+    aspectRatio: 2 / 3,
     backgroundColor: "#eee",
   },
   meta: {
@@ -153,7 +164,6 @@ const styles = StyleSheet.create<{
     fontSize: 12,
     color: "#6b6b6b",
   },
-  /* List-layout styles (compact horizontal row) */
   listContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -161,7 +171,6 @@ const styles = StyleSheet.create<{
     borderRadius: 10,
     padding: 10,
     marginVertical: 6,
-    // shadow/elevation
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -182,6 +191,11 @@ const styles = StyleSheet.create<{
     flex: 1,
     marginLeft: 12,
     justifyContent: "center",
+  },
+  placeholderContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#4A635E",
   },
 });
 

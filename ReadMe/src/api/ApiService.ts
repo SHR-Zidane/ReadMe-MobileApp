@@ -1,15 +1,6 @@
-/**
- * ApiService.ts
- *
- * Fonctions d'accès à l'API — utilisent l'instance Axios centralisée (axiosConfig).
- * La baseURL et la résolution IP/port sont gérées dans axiosConfig.ts.
- */
-
 import { apiClient } from "./axiosConfig";
 import { ENDPOINTS } from "./endpoints";
 import type { Book } from "../types/models";
-
-// ─── Types de réponse ─────────────────────────────────────────────────────────
 
 export interface BooksListResponse {
   error: boolean;
@@ -24,8 +15,6 @@ export interface BookResponse {
   result: Book;
 }
 
-// ─── Requêtes ─────────────────────────────────────────────────────────────────
-
 export const getBooks = async (): Promise<BooksListResponse> => {
   const response = await apiClient.get<BooksListResponse>(ENDPOINTS.BOOKS);
   return response.data;
@@ -36,23 +25,18 @@ export const getBookById = async (id: number): Promise<BookResponse> => {
   return response.data;
 };
 
+export const deleteBook = async (id: number): Promise<void> => {
+  await apiClient.delete(ENDPOINTS.BOOK(id));
+};
+
 export const updateBookProgress = async (
   id: number,
   last_read_page: number,
+  last_read_cfi?: string,
 ): Promise<BookResponse> => {
   const response = await apiClient.put<BookResponse>(
     ENDPOINTS.BOOK_UPDATE(id),
-    {
-      last_read_page,
-    },
-  );
-  return response.data;
-};
-
-export const uploadBook = async (formData: FormData): Promise<BookResponse> => {
-  const response = await apiClient.post<BookResponse>(
-    ENDPOINTS.BOOK_CREATE,
-    formData,
+    { last_read_page, last_read_cfi },
   );
   return response.data;
 };

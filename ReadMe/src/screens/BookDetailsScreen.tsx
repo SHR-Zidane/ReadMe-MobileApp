@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,55 +6,85 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
-  Dimensions,
   Platform,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
-import { getBookById } from "../api/ApiService";
+import { useQueryClient } from "@tanstack/react-query";
+import { getBookById, deleteBook } from "../api/ApiService";
 import { SERVER_BASE_URL } from "../api/axiosConfig";
 import TagsManager from "../components/TagsManager";
-
-// Récupération de la largeur de l'écran pour le calcul des marges
-const { width } = Dimensions.get("window");
+import { Ionicons } from "@expo/vector-icons";
 
 const BookDetailScreen = () => {
   const route = useRoute();
   const navigation = useNavigation<any>();
 
-  // Récupération de l'ID robuste (gère 'id' ou 'bookId' envoyés par HomeScreen)
   const params = route.params as { id?: number; bookId?: number };
   const idToUse = params.id || params.bookId;
 
+  const queryClient = useQueryClient();
   const [book, setBook] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [imageError, setImageError] = useState(false);
+
+  const fetchBookDetails = useCallback(async () => {
+    if (!idToUse || isNaN(Number(idToUse))) return;
+    try {
+      const response = await getBookById(Number(idToUse));
+      setBook(response.result);
+    } catch (err: any) {
+      console.error("Erreur lors du rafraîchissement du livre :", err);
+    }
+  }, [idToUse]);
+
+  const handleDeleteBook = useCallback(() => {
+    Alert.alert(
+      "Supprimer le livre",
+      `Êtes-vous sûr de vouloir supprimer "${book?.title ?? "ce livre"}" ? Cette action est irréversible.`,
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteBook(book.id);
+              queryClient.invalidateQueries({ queryKey: ["books"] });
+              navigation.goBack();
+            } catch (err: any) {
+              Alert.alert("Erreur", err.message ?? "Impossible de supprimer le livre.");
+            }
+          },
+        },
+      ],
+    );
+  }, [book, navigation]);
 
   useEffect(() => {
-    // Sécurité si l'ID est manquant ou n'est pas un nombre
     if (!idToUse || isNaN(Number(idToUse))) {
-      console.error("L'ID reçu est invalide :", idToUse);
       setError("Impossible de charger les détails : ID invalide.");
       setLoading(false);
       return;
     }
 
-    const fetchBookDetails = async () => {
-      try {
-        // Appel API (on force la conversion en nombre pour TS)
-        const response = await getBookById(Number(idToUse));
-        // On stocke le résultat (notre API renvoie { error, result })
-        setBook(response.result);
-      } catch (err: any) {
-        console.error("Erreur API Details:", err);
-        setError(err.message || "Une erreur est survenue lors du chargement.");
-      } finally {
-        setLoading(false);
-      }
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      await fetchBookDetails();
+      setLoading(false);
     };
+    load();
+  }, [idToUse, fetchBookDetails]);
 
-    fetchBookDetails();
-  }, [idToUse]);
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      fetchBookDetails();
+    });
+    return unsubscribe;
+  }, [navigation, fetchBookDetails]);
 
   // Écran de chargement
   if (loading) {
@@ -84,13 +114,20 @@ const BookDetailScreen = () => {
         <View style={styles.content}>
           {/* 1. L'IMAGE DE COUVERTURE (Rétrécie et centrée) */}
           <View style={styles.coverWrapper}>
-            <Image
-              source={{
-                uri: `${SERVER_BASE_URL}/cover_image/${book.cover_image}`,
-              }}
-              style={styles.coverImage}
-              resizeMode="cover" // 'cover' remplit le cadre sans déformer
-            />
+            {book.cover_image && !imageError ? (
+              <Image
+                source={{
+                  uri: `${SERVER_BASE_URL}/cover_image/${book.cover_image}`,
+                }}
+                style={styles.coverImage}
+                resizeMode="cover"
+                onError={() => setImageError(true)}
+              />
+            ) : (
+              <View style={[styles.coverImage, styles.placeholderContainer]}>
+                <Ionicons name="book-outline" size={48} color="#CDE8E1" />
+              </View>
+            )}
           </View>
 
           {/* 2. INFOS PRINCIPALES (Titre et Auteur) */}
@@ -104,16 +141,33 @@ const BookDetailScreen = () => {
             </Text>
           </View>
 
-          {/* BOUTON LIRE */}
           <View style={styles.actionContainer}>
             <TouchableOpacity
               style={styles.readButton}
               onPress={() => {
                 const epubUrl = `${SERVER_BASE_URL}/epub/${book.epubPath}`;
-                navigation.navigate("Reader", { epubUrl, title: book.title });
+                navigation.navigate("Reader", {
+                  epubUrl,
+                  title: book.title,
+                  bookId: book.id,
+                  lastReadPage: book.last_read_page ?? 0,
+                  lastReadCfi: book.last_read_cfi || null,
+                });
               }}
             >
-              <Text style={styles.readButtonText}>Lire le livre</Text>
+              <Text style={styles.readButtonText}>
+                {book.last_read_page > 0
+                  ? "Continuer la lecture"
+                  : "Lire le livre"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={handleDeleteBook}
+            >
+              <Ionicons name="trash-outline" size={18} color="#C0392B" />
+              <Text style={styles.deleteButtonText}>Supprimer le livre</Text>
             </TouchableOpacity>
           </View>
 
@@ -163,12 +217,9 @@ const styles = StyleSheet.create({
 
   // --- Styles modifiés pour la couverture ---
   coverWrapper: {
-    // Cette View englobe l'image pour gérer le centrage et l'ombre
-    alignItems: "center", // Centre horizontalement
+    alignItems: "center",
     justifyContent: "center",
-    marginBottom: 25, // Espace sous l'image
-
-    // Ombre portée pour donner du relief (iOS)
+    marginBottom: 25,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -177,16 +228,20 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
       },
       android: {
-        elevation: 5, // Ombre Android
+        elevation: 5,
       },
     }),
   },
   coverImage: {
-    // Dimensions RÉTRÉCIES (par rapport aux 160x240 précédents)
-    width: 120, // Plus petite largeur
-    aspectRatio: 2 / 3, // Conserve le ratio livre vertical (hauteur sera 180)
-    borderRadius: 8, // Petit arrondi moderne
-    backgroundColor: "#f5f5f5", // Couleur d'attente
+    width: 120,
+    aspectRatio: 2 / 3,
+    borderRadius: 8,
+    backgroundColor: "#f5f5f5",
+  },
+  placeholderContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#4A635E",
   },
   // ------------------------------------------
 
@@ -233,6 +288,24 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
+  },
+
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E74C3C",
+    gap: 8,
+  },
+  deleteButtonText: {
+    color: "#C0392B",
+    fontSize: 15,
+    fontWeight: "600",
   },
 
   // Styles pour le résumé

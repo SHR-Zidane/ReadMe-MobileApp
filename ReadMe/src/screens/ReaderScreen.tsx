@@ -1,13 +1,50 @@
-import React from 'react';
-import { StyleSheet, View, ActivityIndicator, Platform } from 'react-native';
+import React, { useRef, useCallback } from 'react';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRoute } from '@react-navigation/native';
+import { updateBookProgress } from '../api/ApiService';
 
 const ReaderScreen = () => {
   const route = useRoute();
-  const { epubUrl, title } = route.params as { epubUrl: string; title: string };
+  const { epubUrl, title, bookId, lastReadPage, lastReadCfi } = route.params as {
+    epubUrl: string;
+    title: string;
+    bookId: number;
+    lastReadPage: number;
+    lastReadCfi: string | null;
+  };
 
-  // Code HTML du lecteur intégré (utilise epub.js via CDN)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedCfiRef = useRef<string | null>(lastReadCfi);
+  const lastSavedPageRef = useRef<number>(lastReadPage ?? 0);
+
+  const saveProgress = useCallback((page: number, cfi: string) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      if (cfi === lastSavedCfiRef.current) return;
+      try {
+        await updateBookProgress(bookId, page, cfi);
+        lastSavedCfiRef.current = cfi;
+        lastSavedPageRef.current = page;
+      } catch (err) {
+        console.error('[Reader] Erreur sauvegarde progression:', err);
+      }
+    }, 1500);
+  }, [bookId]);
+
+  const handleMessage = useCallback((event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'page') {
+        saveProgress(data.page, data.cfi);
+      }
+    } catch (err) {
+      console.warn('[Reader] Message invalide:', err);
+    }
+  }, [saveProgress]);
+
+  const savedCfiJson = JSON.stringify(lastReadCfi);
+
   const readerHtml = `
     <!DOCTYPE html>
     <html>
@@ -32,6 +69,8 @@ const ReaderScreen = () => {
       <div id="page-number">---</div>
 
       <script>
+        var savedCfi = ${savedCfiJson};
+
         document.addEventListener("DOMContentLoaded", function() {
           var book = ePub("${epubUrl}");
           var rendition = book.renderTo("viewer", {
@@ -41,54 +80,58 @@ const ReaderScreen = () => {
             manager: "default"
           });
 
-          var display = rendition.display();
+          // Afficher le livre : à la position sauvegardée si dispo, sinon au début
+          var displayPromise = savedCfi ? rendition.display(savedCfi) : rendition.display();
 
-          display.then(function() {
+          displayPromise.then(function() {
             document.getElementById("loading").style.display = "none";
-          }).catch(err => {
-            document.getElementById("loading").innerHTML = "Erreur : " + err.message;
-          });
-
-          // --- GESTION DU NUMÉRO DE PAGE ---
-          book.ready.then(function() {
-            // Génère les emplacements pour calculer les pages (peut être lent sur gros livres)
-            return book.locations.generate(1000); 
-          }).then(function() {
-            rendition.on("relocated", function(location) {
-              var percent = book.locations.percentageFromCfi(location.start.cfi);
-              var currentPage = book.locations.locationFromCfi(location.start.cfi);
-              var totalPages = book.locations.total;
-              document.getElementById("page-number").innerHTML = "Page " + (currentPage + 1) + " sur " + totalPages;
+          }).catch(function() {
+            rendition.display().then(function() {
+              document.getElementById("loading").style.display = "none";
+            }).catch(function(err2) {
+              document.getElementById("loading").innerHTML = "Erreur : " + err2.message;
             });
           });
 
-          // --- GESTION DU SWIPE (Glisser le doigt) ---
-          let touchstartX = 0;
-          let touchendX = 0;
+          book.ready.then(function() {
+            return book.locations.generate(100);
+          }).then(function() {
+            rendition.on("relocated", function(location) {
+              var currentPage = 0;
+              try {
+                currentPage = book.locations.locationFromCfi(location.start.cfi);
+              } catch(e) {
+                currentPage = 0;
+              }
+              var totalPages = book.locations.total || 0;
+              document.getElementById("page-number").innerHTML = "Page " + (currentPage + 1) + " sur " + totalPages;
+
+              if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: "page",
+                  cfi: location.start.cfi,
+                  page: currentPage
+                }));
+              }
+            });
+          });
+
+          // GESTION DU SWIPE
+          var touchstartX = 0;
+          var touchendX = 0;
 
           function checkDirection() {
-            const threshold = 50; // pixels minimum pour un swipe
-            if (touchendX < touchstartX - threshold) rendition.next(); // Vers la gauche -> Suivant
-            if (touchendX > touchstartX + threshold) rendition.prev(); // Vers la droite -> Précédent
+            var threshold = 50;
+            if (touchendX < touchstartX - threshold) rendition.next();
+            if (touchendX > touchstartX + threshold) rendition.prev();
           }
 
-          // On écoute sur le viewer pour capturer les touches dans l'iframe
           rendition.on("touchstart", function(event) {
             touchstartX = event.changedTouches[0].screenX;
           });
 
           rendition.on("touchend", function(event) {
             touchendX = event.changedTouches[0].screenX;
-            checkDirection();
-          });
-          
-          // Compatibilité pour certains navigateurs / Web
-          window.addEventListener('touchstart', e => {
-            touchstartX = e.changedTouches[0].screenX;
-          });
-
-          window.addEventListener('touchend', e => {
-            touchendX = e.changedTouches[0].screenX;
             checkDirection();
           });
         });
@@ -108,6 +151,7 @@ const ReaderScreen = () => {
         allowFileAccess={true}
         mixedContentMode="always"
         startInLoadingState={true}
+        onMessage={handleMessage}
         renderLoading={() => (
           <View style={styles.loading}>
             <ActivityIndicator size="large" color="#4A635E" />

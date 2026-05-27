@@ -23,6 +23,7 @@ export interface Book {
   epubPath: string;
   cover_image: string | null;
   last_read_page: number;
+  last_read_cfi: string | null;
   epub_content?: string;
   authorId: number | null;
   created_at: string;

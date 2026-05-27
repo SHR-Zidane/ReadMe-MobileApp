@@ -1,11 +1,4 @@
-/**
- * TagsManager.tsx
- *
- * Affiche les tags du livre sous forme de chips et propose un modal
- * complet pour créer, éditer, supprimer des tags et les associer au livre.
- */
-
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -30,8 +23,6 @@ import {
   useRemoveTagFromBook,
 } from "../hooks/useTags";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const COLORS = {
   primary: "#4A635E",
   secondary: "#CDE8E1",
@@ -52,8 +43,6 @@ const TAG_PALETTE = [
   "#C0392B",
   "#7F8C8D",
 ] as const;
-
-// ─── TagRow ───────────────────────────────────────────────────────────────────
 
 interface TagRowProps {
   tag: Tag;
@@ -87,7 +76,6 @@ const TagRow: React.FC<TagRowProps> = React.memo(
     onEditNameChange,
     onEditColorChange,
   }) => {
-    // ── Inline edit mode ──────────────────────────────────────────────────
     if (isEditing) {
       return (
         <View style={rowStyles.container}>
@@ -145,10 +133,8 @@ const TagRow: React.FC<TagRowProps> = React.memo(
       );
     }
 
-    // ── Normal mode ───────────────────────────────────────────────────────
     return (
       <View style={rowStyles.container}>
-        {/* Checkbox */}
         <TouchableOpacity
           onPress={() => onToggle(tag)}
           style={rowStyles.checkboxTouch}
@@ -165,14 +151,12 @@ const TagRow: React.FC<TagRowProps> = React.memo(
           </View>
         </TouchableOpacity>
 
-        {/* Chip */}
         <View style={[rowStyles.chip, { backgroundColor: tag.color }]}>
           <Text style={rowStyles.chipText} numberOfLines={1}>
             {tag.name}
           </Text>
         </View>
 
-        {/* Edit / Delete */}
         <View style={rowStyles.actions}>
           <TouchableOpacity
             onPress={() => onStartEdit(tag)}
@@ -196,15 +180,12 @@ const TagRow: React.FC<TagRowProps> = React.memo(
 
 TagRow.displayName = "TagRow";
 
-// ─── TagsManager ─────────────────────────────────────────────────────────────
-
 interface Props {
   bookId: number;
   initialTags: Tag[];
 }
 
 const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
-  // ── State ────────────────────────────────────────────────────────────────
   const [modalVisible, setModalVisible] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [selectedColor, setSelectedColor] = useState<string>(TAG_PALETTE[0]);
@@ -215,12 +196,11 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
     () => new Set(initialTags.map((t) => t.id)),
   );
 
-  // Resynchronise si le parent fournit de nouveaux initialTags
   useEffect(() => {
+    if (initialTags.length === 0) return;
     setBookTagIds(new Set(initialTags.map((t) => t.id)));
   }, [initialTags]);
 
-  // ── Hooks ────────────────────────────────────────────────────────────────
   const { tags, isLoading } = useTags();
   const addTagMutation = useAddTagToBook(bookId);
   const removeTagMutation = useRemoveTagFromBook(bookId);
@@ -228,15 +208,16 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
   const updateTagMutation = useUpdateTag();
   const deleteTagMutation = useDeleteTag();
 
-  // Tags actuellement sur ce livre, résolus depuis la liste complète
-  const currentBookTags = tags.filter((t) => bookTagIds.has(t.id));
-
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  const currentBookTags = useMemo(() => {
+    const tagMap = new Map<number, Tag>();
+    initialTags.forEach((t) => tagMap.set(t.id, t));
+    tags.forEach((t) => tagMap.set(t.id, t));
+    return [...bookTagIds].map((id) => tagMap.get(id)).filter(Boolean) as Tag[];
+  }, [tags, initialTags, bookTagIds]);
 
   const handleToggleTag = useCallback(
     (tag: Tag) => {
       if (bookTagIds.has(tag.id)) {
-        // Optimistic remove
         setBookTagIds((prev) => {
           const next = new Set(prev);
           next.delete(tag.id);
@@ -248,7 +229,6 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
           },
         });
       } else {
-        // Optimistic add
         setBookTagIds((prev) => new Set([...prev, tag.id]));
         addTagMutation.mutate(
           { tagId: tag.id },
@@ -264,7 +244,6 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
         );
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [bookTagIds],
   );
 
@@ -330,7 +309,6 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
             text: "Supprimer",
             style: "destructive",
             onPress: () => {
-              // Retire du set local avant la requête
               setBookTagIds((prev) => {
                 const next = new Set(prev);
                 next.delete(tag.id);
@@ -357,11 +335,8 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
     setModalVisible(false);
   }, []);
 
-  // ── Render ───────────────────────────────────────────────────────────────
-
   return (
     <View>
-      {/* ── Chips des tags actuels ─────────────────────────────────────── */}
       <View style={styles.chipsRow}>
         {currentBookTags.length > 0 ? (
           currentBookTags.map((tag) => (
@@ -377,7 +352,6 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
         )}
       </View>
 
-      {/* ── Bouton de gestion ─────────────────────────────────────────── */}
       <TouchableOpacity
         style={styles.manageBtn}
         onPress={() => setModalVisible(true)}
@@ -387,7 +361,6 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
         <Text style={styles.manageBtnText}> ✎ Tags</Text>
       </TouchableOpacity>
 
-      {/* ── Modal ─────────────────────────────────────────────────────── */}
       <Modal
         visible={modalVisible}
         animationType="slide"
@@ -395,23 +368,19 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
         onRequestClose={handleCloseModal}
       >
         <View style={styles.overlay}>
-          {/* Backdrop : tap pour fermer */}
           <TouchableOpacity
             style={styles.backdrop}
             activeOpacity={1}
             onPress={handleCloseModal}
           />
 
-          {/* Bottom sheet avec gestion du clavier */}
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
           >
             <View style={styles.sheet}>
-              {/* Handle bar */}
               <View style={styles.handleBar} />
 
-              {/* Titre */}
               <Text style={styles.sheetTitle}>Gérer les tags</Text>
 
               <ScrollView
@@ -420,7 +389,6 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
-                {/* ── Nouveau tag ── */}
                 <Text style={styles.sectionLabel}>Nouveau tag</Text>
                 <TextInput
                   style={styles.textInput}
@@ -460,10 +428,8 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
                   )}
                 </TouchableOpacity>
 
-                {/* Séparateur */}
                 <View style={styles.separator} />
 
-                {/* ── Tags existants ── */}
                 <Text style={styles.sectionLabel}>Tags existants</Text>
                 {isLoading ? (
                   <ActivityIndicator
@@ -499,7 +465,6 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
                 )}
               </ScrollView>
 
-              {/* Bouton fermer */}
               <TouchableOpacity
                 style={styles.closeBtn}
                 onPress={handleCloseModal}
@@ -517,10 +482,7 @@ const TagsManager: React.FC<Props> = ({ bookId, initialTags }) => {
 
 export default TagsManager;
 
-// ─── Styles principaux ────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  // Chips affichées sur la fiche livre
   chipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -542,8 +504,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontStyle: "italic",
   },
-
-  // Bouton d'ouverture du modal
   manageBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -560,8 +520,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-
-  // Modal / Overlay
   overlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -570,8 +528,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.45)",
   },
-
-  // Bottom sheet
   sheet: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
@@ -601,8 +557,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
-
-  // Section labels
   sectionLabel: {
     fontSize: 12,
     fontWeight: "700",
@@ -611,8 +565,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     marginBottom: 10,
   },
-
-  // Création d'un nouveau tag
   textInput: {
     borderWidth: 1,
     borderColor: "#ddd",
@@ -658,23 +610,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
-
-  // Séparateur
   separator: {
     height: 1,
     backgroundColor: "#eee",
     marginVertical: 20,
   },
-
-  // État vide
   emptyText: {
     color: COLORS.textSub,
     fontSize: 14,
     textAlign: "center",
     marginVertical: 12,
   },
-
-  // Pied du modal
   closeBtn: {
     margin: 16,
     backgroundColor: COLORS.secondary,
@@ -689,8 +635,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// ─── Styles des lignes de tag (TagRow) ───────────────────────────────────────
-
 const rowStyles = StyleSheet.create({
   container: {
     flexDirection: "row",
@@ -699,8 +643,6 @@ const rowStyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
-
-  // Checkbox
   checkboxTouch: {
     padding: 4,
     marginRight: 10,
@@ -724,8 +666,6 @@ const rowStyles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 17,
   },
-
-  // Chip dans la liste
   chip: {
     flex: 1,
     borderRadius: 20,
@@ -739,8 +679,6 @@ const rowStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
   },
-
-  // Boutons icônes
   actions: {
     flexDirection: "row",
     alignItems: "center",
@@ -749,8 +687,6 @@ const rowStyles = StyleSheet.create({
     padding: 6,
     marginLeft: 2,
   },
-
-  // Bloc d'édition inline
   editBlock: {
     flex: 1,
     gap: 8,
